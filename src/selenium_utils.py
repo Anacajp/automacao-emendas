@@ -3,11 +3,14 @@ from selenium.webdriver.chrome.options import Options
 import time
 import os
 import logging
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-def baixar_csv_bi(url, caminho_csv, indice_botao=2):
+def baixar_csv_bi(url, caminho_csv, indice_botao=4):
     """
-    Acessa a URL, encontra todos os elementos com a classe 'ui-role-button-fill',
-    clica no elemento de índice especificado e salva o CSV no caminho_csv.
+    Acessa a URL, entra no iframe do dashboard, tenta clicar na div mãe do botão 'Baixar os dados' usando data-testid ou classes.
+    Se o clique for interceptado, tenta rolar até o elemento e clicar via JavaScript.
     Adiciona logs detalhados para acompanhamento.
     """
     chrome_options = Options()
@@ -24,28 +27,70 @@ def baixar_csv_bi(url, caminho_csv, indice_botao=2):
         driver.get(url)
         logging.info("Página carregada. Aguardando elementos...")
         time.sleep(10)  # Aguarda carregar
+        wait = WebDriverWait(driver, 30)
 
-        # Busca todos os elementos <path> com a classe desejada
-        botoes = driver.find_elements("xpath", "//path[contains(@class, 'ui-role-button-fill')]")
-        logging.info(f"Encontrados {len(botoes)} elementos com a classe 'ui-role-button-fill'.")
+        # 1. Localiza e entra no iframe
+        try:
+            iframe = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="page"]/div/div[2]/div/div[2]/div/iframe')))
+            driver.switch_to.frame(iframe)
+            logging.info("Entrou no iframe do dashboard Power BI.")
+        except Exception as e:
+            logging.error(f"Não foi possível localizar/entrar no iframe: {e}")
+            raise
 
-        if len(botoes) > indice_botao:
-            logging.info(f"Clicando no elemento de índice {indice_botao}.")
-            botoes[indice_botao].click()
-            logging.info("Clique realizado. Aguardando download...")
-            time.sleep(10)  # Aguarda download
+        divs = []
+        # 2. Tenta pelo data-testid
+        try:
+            divs = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div[data-testid="visual-content-desc"]')))
+            logging.info(f"Encontrados {len(divs)} divs com data-testid='visual-content-desc' dentro do iframe.")
+        except Exception as e:
+            logging.warning(f"Não encontrou divs por data-testid dentro do iframe: {e}")
+        # 3. Se não encontrou, tenta pelas classes
+        if not divs:
+            try:
+                divs = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div.visual.customPadding.allow-deferred-rendering.visual-shape')))
+                logging.info(f"Encontrados {len(divs)} divs pelas classes dentro do iframe.")
+            except Exception as e:
+                logging.error(f"Não encontrou divs pelas classes dentro do iframe: {e}")
+                raise
+        # 4. Tenta clicar no índice desejado
+        if len(divs) > indice_botao:
+            div_alvo = divs[indice_botao]
+            try:
+                # Rola até o elemento
+                driver.execute_script("arguments[0].scrollIntoView(true);", div_alvo)
+                time.sleep(1)
+                logging.info(f"Tentando clicar normalmente na div de índice {indice_botao} dentro do iframe.")
+                wait.until(EC.element_to_be_clickable(div_alvo)).click()
+                logging.info("Clique realizado na div mãe dentro do iframe. Aguardando download...")
+                time.sleep(10)  # Aguarda download
+            except Exception as e:
+                logging.warning(f"Click normal falhou: {e}. Tentando via JavaScript...")
+                try:
+                    driver.execute_script("arguments[0].click();", div_alvo)
+                    logging.info("Clique via JavaScript realizado na div mãe dentro do iframe. Aguardando download...")
+                    time.sleep(10)
+                except Exception as e2:
+                    logging.error(f"Clique via JavaScript também falhou: {e2}. Tentando buscar filhos clicáveis...")
+                    # (Opcional) Tenta clicar em filhos clicáveis
+                    filhos = div_alvo.find_elements(By.XPATH, ".//button|.//a|.//svg|.//g")
+                    for filho in filhos:
+                        try:
+                            driver.execute_script("arguments[0].scrollIntoView(true);", filho)
+                            time.sleep(0.5)
+                            filho.click()
+                            logging.info("Clique realizado em filho clicável da div mãe. Aguardando download...")
+                            time.sleep(10)
+                            break
+                        except Exception as e3:
+                            logging.warning(f"Clique em filho falhou: {e3}")
+                    else:
+                        logging.error("Nenhum filho clicável funcionou. Não foi possível clicar no botão de download.")
+                        raise
         else:
-            logging.error(f"Índice {indice_botao} fora do range. Apenas {len(botoes)} elementos encontrados.")
-            raise Exception(f"Índice {indice_botao} fora do range dos elementos encontrados.")
-
-        # (Opcional) Renomeie/mova o arquivo baixado para caminho_csv se necessário
-        # Dependendo do site, pode ser necessário identificar o nome do arquivo baixado
-        # Exemplo:
-        # downloads = os.listdir(os.path.dirname(os.path.abspath(caminho_csv)))
-        # arquivo_baixado = max([os.path.join(..., f) for f in downloads], key=os.path.getctime)
-        # os.rename(arquivo_baixado, caminho_csv)
-        # Se o nome já for igual, não precisa mover
-        logging.info("Processo de download finalizado.")
+            logging.error(f"Índice {indice_botao} fora do range. Apenas {len(divs)} divs encontradas dentro do iframe.")
+            raise Exception(f"Índice {indice_botao} fora do range dos elementos encontrados dentro do iframe.")
+        logging.info("Processo de clique na div mãe dentro do iframe finalizado.")
     except Exception as e:
         logging.error(f"Erro durante o processo de download: {e}")
         raise
