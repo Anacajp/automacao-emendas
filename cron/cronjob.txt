@@ -1,0 +1,1 @@
+0 8 * * * cd /c/Users/Inteli/Desktop/automacao-emendas && python src/main.py >> /c/Users/Inteli/Desktop/automacao-emendas/logs/cron.log 2>&1
