@@ -3,9 +3,6 @@ from selenium.webdriver.chrome.options import Options
 import time
 import os
 import logging
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 def baixar_csv_bi(url, caminho_csv, indice_botao=2):
     """
@@ -26,18 +23,17 @@ def baixar_csv_bi(url, caminho_csv, indice_botao=2):
     try:
         driver.get(url)
         logging.info("Página carregada. Aguardando elementos...")
-        time.sleep(20)  # Aguarda carregar
+        time.sleep(10)  # Aguarda carregar
 
         # Busca todos os elementos <path> com a classe desejada
-        wait = WebDriverWait(driver, 20)
-        botoes = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//path[contains(@class, 'ui-role-button-fill')]")))
+        botoes = driver.find_elements("xpath", "//path[contains(@class, 'ui-role-button-fill')]")
         logging.info(f"Encontrados {len(botoes)} elementos com a classe 'ui-role-button-fill'.")
 
         if len(botoes) > indice_botao:
             logging.info(f"Clicando no elemento de índice {indice_botao}.")
             botoes[indice_botao].click()
             logging.info("Clique realizado. Aguardando download...")
-            time.sleep(20)  # Aguarda download
+            time.sleep(10)  # Aguarda download
         else:
             logging.error(f"Índice {indice_botao} fora do range. Apenas {len(botoes)} elementos encontrados.")
             raise Exception(f"Índice {indice_botao} fora do range dos elementos encontrados.")
