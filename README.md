@@ -2,8 +2,8 @@
 
 ## Fluxo do Projeto
 
-1. **Baixa o CSV** do BI usando Selenium (headless)
-2. **Atualiza a planilha Google Sheets** com os dados do CSV
+1. **Baixa o XLSX** do BI usando Selenium (headless)
+2. **Atualiza a planilha Google Sheets** com os dados do XLSX
 3. **Executa periodicamente** (pode ser agendado na nuvem)
 
 ## Configuração
@@ -17,7 +17,7 @@
   - `SHEET_RANGE`: nome da aba (ex: 'Página1')
   - `URL_BI`: URL do BI
   - (Opcional) `BI_USER` e `BI_PASS` se precisar de login
-  - (Opcional) `CSV_PATH` para definir onde salvar o CSV
+  - (Opcional) `XLSX_PATH` para definir onde salvar o XLSX
 
 ## Instalação
 
